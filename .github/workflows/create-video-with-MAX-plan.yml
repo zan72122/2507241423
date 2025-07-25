@@ -62,16 +62,14 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Install Claude Code SDK
-        run: npm install @anthropic-ai/claude-code
+      - name: Install Claude Code CLI (Latest Version for OAuth)
+        run: npm install -g @anthropic-ai/claude-code@latest
       
       - name: 動画制作計画エージェント (MAXプラン)
         id: planning
         env:
           # MAXプランのOAuthトークンを使用（従量課金なし）
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # 代替認証方法（一部のCLIバージョンで必要）
-          ANTHROPIC_AUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           echo "::group::📋 Video Planning Agent Execution (MAX Plan)"
           echo "Starting at: $(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
@@ -146,7 +144,7 @@ jobs:
           echo "📝 Prompt length: ${#PROMPT}"
           
           # Claude Code CLIの実行（MAXプラン認証）
-          npx @anthropic-ai/claude-code \
+          claude-code \
             --allowedTools "Read,Write,Edit" \
             --max-turns 25 \
             --verbose \
@@ -244,16 +242,14 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Install Claude Code SDK
-        run: npm install @anthropic-ai/claude-code
+      - name: Install Claude Code CLI (Latest Version for OAuth)
+        run: npm install -g @anthropic-ai/claude-code@latest
       
       - name: 画像生成エージェント (Imagen4 Ultra, MAXプラン)
         id: image
         env:
           # MAXプランのOAuthトークンを使用（従量課金なし）
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # 代替認証方法（一部のCLIバージョンで必要）
-          ANTHROPIC_AUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           echo "::group::🎨 Image Generation Agent Execution (Imagen4 Ultra, MAX Plan)"
           echo "Starting at: $(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
@@ -327,7 +323,7 @@ jobs:
           echo "📝 Prompt length: ${#PROMPT}"
           
           # Claude Code CLIの実行（MAXプラン認証）
-          npx @anthropic-ai/claude-code \
+          claude-code \
             --mcp-config="$MCP_CONFIG_ABS_PATH" \
             --allowedTools "mcp__t2i-fal-imagen4-ultra__imagen4_ultra_submit,mcp__t2i-fal-imagen4-ultra__imagen4_ultra_status,mcp__t2i-fal-imagen4-ultra__imagen4_ultra_result,Bash" \
             --max-turns 25 \
@@ -405,16 +401,14 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Install Claude Code SDK
-        run: npm install @anthropic-ai/claude-code
+      - name: Install Claude Code CLI (Latest Version for OAuth)
+        run: npm install -g @anthropic-ai/claude-code@latest
       
       - name: 動画プロンプト最適化エージェント (MAXプラン)
         id: optimization
         env:
           # MAXプランのOAuthトークンを使用（従量課金なし）
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # 代替認証方法（一部のCLIバージョンで必要）
-          ANTHROPIC_AUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           echo "::group::🎬 Video Prompt Optimization Agent Execution (MAX Plan)"
           echo "Starting at: $(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
@@ -495,7 +489,7 @@ jobs:
           echo "📝 Prompt length: ${#PROMPT}"
           
           # Claude Code CLIの実行（MAXプラン認証）
-          npx @anthropic-ai/claude-code \
+          claude-code \
             --allowedTools "Read,Write,Edit" \
             --max-turns 10 \
             --verbose \
@@ -573,16 +567,14 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Install Claude Code SDK
-        run: npm install @anthropic-ai/claude-code
+      - name: Install Claude Code CLI (Latest Version for OAuth)
+        run: npm install -g @anthropic-ai/claude-code@latest
       
       - name: 動画生成エージェント (Vidu Q1, MAXプラン)
         id: video
         env:
           # MAXプランのOAuthトークンを使用（従量課金なし）
           CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # 代替認証方法（一部のCLIバージョンで必要）
-          ANTHROPIC_AUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           echo "::group::🎬 Video Generation Agent Execution (Vidu Q1, MAX Plan)"
           echo "Starting at: $(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"
@@ -682,7 +674,7 @@ jobs:
           echo "📝 Prompt length: ${#PROMPT}"
           
           # Claude Code CLIの実行（MAXプラン認証）
-          npx @anthropic-ai/claude-code \
+          claude-code \
             --mcp-config="$MCP_CONFIG_ABS_PATH" \
             --allowedTools "mcp__r2v-fal-vidu-q1__vidu_q1_submit,mcp__r2v-fal-vidu-q1__vidu_q1_status,mcp__r2v-fal-vidu-q1__vidu_q1_result,Bash" \
             --max-turns 25 \
