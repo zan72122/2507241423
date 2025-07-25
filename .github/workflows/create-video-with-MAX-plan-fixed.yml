@@ -1,0 +1,537 @@
+name: Create Video with MAX Plan (Fixed)
+
+# このワークフローはClaude MAXプランのOAuthトークンを使用し、従量課金を回避します
+# GitHub Action版のclaude-code-action@betaを使用してOAuth認証を実現
+
+on:
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: '動画のプロンプト（画像生成用）'
+        required: true
+        type: string
+
+jobs:
+  setup-branch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      branch-name: ${{ steps.create-branch.outputs.branch-name }}
+      folder-name: ${{ steps.create-branch.outputs.folder-name }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Create branch for video generation
+        id: create-branch
+        run: |
+          BRANCH_NAME="video-max-fixed/$(date +%Y%m%d)-${{ github.run_id }}"
+          FOLDER_NAME="video-max-fixed-$(date +%Y%m%d)-${{ github.run_id }}"
+          git checkout -b $BRANCH_NAME
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git push origin $BRANCH_NAME
+          echo "branch-name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "folder-name=$FOLDER_NAME" >> $GITHUB_OUTPUT
+          echo "Created branch: $BRANCH_NAME"
+          echo "Folder name: $FOLDER_NAME"
+
+  planning:
+    runs-on: ubuntu-latest
+    needs: [setup-branch]
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    outputs:
+      planning-completed: ${{ steps.planning.outputs.completed }}
+      image-prompt: ${{ steps.planning.outputs.image-prompt }}
+      video-concept: ${{ steps.planning.outputs.video-concept }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup-branch.outputs.branch-name }}
+      
+      - name: Create planning folder
+        run: |
+          FOLDER_NAME="${{ needs.setup-branch.outputs.folder-name }}"
+          PLANNING_DIR="$FOLDER_NAME/planning"
+          mkdir -p "$PLANNING_DIR"
+          echo "📁 Created planning folder: $PLANNING_DIR"
+      
+      - name: 動画制作計画エージェント (MAXプラン GitHub Action版)
+        id: planning
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          custom_instructions: |
+            あなたは動画制作の専門プランナーです。ユーザーの指示から最適な画像と動画を生成するための詳細な計画を立ててください。
+
+            **ユーザーの指示**: ${{ inputs.prompt }}
+
+            **タスク**:
+            1. ユーザーの指示を分析し、どのような画像と動画を生成すべきかを計画
+            2. 高品質な画像生成用のプロンプトを作成
+            3. 動画のコンセプトと方向性を定義
+            4. 計画書を「${{ needs.setup-branch.outputs.folder-name }}/planning/video-plan.md」に保存
+            5. 画像生成用プロンプトを「${{ needs.setup-branch.outputs.folder-name }}/planning/image-prompt.txt」に保存
+            6. 動画コンセプトを「${{ needs.setup-branch.outputs.folder-name }}/planning/video-concept.txt」に保存
+
+            **計画のポイント**:
+            - ユーザーの意図を正確に理解
+            - 魅力的で視覚的に美しい画像・動画の構想
+            - 技術的制約を考慮した現実的な計画
+            - 一貫したビジュアルコンセプト
+            - 具体的で詳細なプロンプト作成
+
+            **画像生成プロンプトの要件**:
+            - Imagen4 Ultraに最適化された詳細なプロンプト
+            - 視覚的要素（色彩、構図、スタイル）を明確に指定
+            - 高解像度・高品質を意識した記述
+            - 50-100語程度の適切な長さ
+
+            **動画コンセプトの要件**:
+            - 生成される画像をベースにした動画の方向性
+            - 動きやアニメーションの種類
+            - 雰囲気や感情表現
+            - Vidu Q1での動画生成に適した内容
+
+            **重要**: 
+            1. 必ず以下の5つのファイルを作成してください：
+               - ${{ needs.setup-branch.outputs.folder-name }}/planning/video-plan.md
+               - ${{ needs.setup-branch.outputs.folder-name }}/planning/image-prompt.txt
+               - ${{ needs.setup-branch.outputs.folder-name }}/planning/image-prompt.md（ユーザー確認用）
+               - ${{ needs.setup-branch.outputs.folder-name }}/planning/video-concept.txt
+               - ${{ needs.setup-branch.outputs.folder-name }}/planning/video-concept.md（ユーザー確認用）
+            2. txtファイルは機械処理用（1行テキスト）、mdファイルはユーザー確認用
+            3. 各ファイルの内容は具体的で詳細に記述してください
+            4. ファイル作成後、必ずファイルパスを確認・報告してください
+
+            **今すぐ上記のタスクを実行してください。GitHub Action版Claude Code (MAX Plan)を使用中です。**
+      
+      - name: Verify planning files and extract outputs
+        id: verify-planning
+        run: |
+          FOLDER_NAME="${{ needs.setup-branch.outputs.folder-name }}"
+          PLANNING_DIR="$FOLDER_NAME/planning"
+          
+          echo "📋 Verifying generated planning files..."
+          
+          # 画像プロンプトの確認
+          if [ -f "$PLANNING_DIR/image-prompt.txt" ]; then
+            IMAGE_PROMPT=$(cat "$PLANNING_DIR/image-prompt.txt" | tr '\n' ' ')
+            echo "::notice::✅ Image prompt generated"
+            echo "Image prompt: $IMAGE_PROMPT"
+            echo "image-prompt=$IMAGE_PROMPT" >> $GITHUB_OUTPUT
+          else
+            echo "::error::❌ Image prompt file not found"
+            exit 1
+          fi
+          
+          # 動画コンセプトの確認
+          if [ -f "$PLANNING_DIR/video-concept.txt" ]; then
+            VIDEO_CONCEPT=$(head -5 "$PLANNING_DIR/video-concept.txt" | tr '\n' ' ')
+            echo "::notice::✅ Video concept generated"
+            echo "Video concept: $VIDEO_CONCEPT"
+            echo "video-concept=$VIDEO_CONCEPT" >> $GITHUB_OUTPUT
+          else
+            echo "::error::❌ Video concept file not found"
+            exit 1
+          fi
+          
+          # 計画書の確認
+          if [ -f "$PLANNING_DIR/video-plan.md" ]; then
+            echo "::notice::✅ Video plan document generated"
+            echo "First 10 lines of plan:"
+            head -10 "$PLANNING_DIR/video-plan.md"
+          else
+            echo "::warning::⚠️ Video plan document not found"
+          fi
+          
+          echo "completed=true" >> $GITHUB_OUTPUT
+      
+      - name: Commit and push planning
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ needs.setup-branch.outputs.folder-name }}/
+          if git diff --cached --quiet; then
+            echo "No planning files to commit"
+          else
+            git commit -m "Add video planning (MAX Plan GitHub Action): ${{ inputs.prompt }}"
+            git push origin ${{ needs.setup-branch.outputs.branch-name }}
+          fi
+
+  image-generation:
+    runs-on: ubuntu-latest
+    needs: [setup-branch, planning]
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    outputs:
+      image-completed: ${{ steps.image.outputs.completed }}
+      google-image-url: ${{ steps.image.outputs.google-image-url }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup-branch.outputs.branch-name }}
+      
+      - name: Create images folder
+        run: |
+          FOLDER_NAME="${{ needs.setup-branch.outputs.folder-name }}"
+          IMAGES_DIR="$FOLDER_NAME/images"
+          mkdir -p "$IMAGES_DIR"
+          echo "📁 Created images folder: $IMAGES_DIR"
+      
+      - name: 画像生成エージェント (Imagen4 Ultra, MAXプラン GitHub Action版)
+        id: image
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          custom_instructions: |
+            以下のプロンプトでImagen4 Ultraを使用して高品質な画像を生成してください。
+
+            **元のユーザー指示**: ${{ inputs.prompt }}
+            **最適化された画像生成プロンプト**: ${{ needs.planning.outputs.image-prompt }}
+
+            **実行手順**:
+            1. **最適化された画像生成プロンプト**を使用してImagen4 Ultraで画像生成
+            2. MCP設定ファイル「.claude/mcp-kamuicode.json」を確認
+            3. `mcp__t2i-fal-imagen4-ultra__imagen4_ultra_submit`ツールで画像生成を開始
+            4. `mcp__t2i-fal-imagen4-ultra__imagen4_ultra_status`でステータス確認
+            5. `mcp__t2i-fal-imagen4-ultra__imagen4_ultra_result`で結果取得してGoogle URLを取得
+            6. **重要**: 生成時に取得したGoogle URLを「${{ needs.setup-branch.outputs.folder-name }}/google-image-url.txt」ファイルに保存
+            7. 取得したGoogle URLを「${{ needs.setup-branch.outputs.folder-name }}/images/generated-image.png」にダウンロード保存
+
+            **重要な注意点**:
+            - Google URLの有効期限は約1時間のため、生成後すぐにダウンロード
+            - 必ずGoogle提供の認証済URLを使用
+            - 画像は必ず「${{ needs.setup-branch.outputs.folder-name }}/images」ディレクトリに保存
+            - ファイル名は「generated-image.png」とする
+            - **最重要**: 生成時のGoogle URLを「${{ needs.setup-branch.outputs.folder-name }}/google-image-url.txt」に保存し、次のジョブで参照できるようにする
+            - **両方を実行**: ①Google URLをテキストファイルに保存 ②Google URLから画像をダウンロード
+
+            **今すぐ上記のタスクを実行してください。GitHub Action版Claude Code (MAX Plan)を使用中です。**
+      
+      - name: Verify image generation and extract outputs
+        id: verify-image
+        run: |
+          FOLDER_NAME="${{ needs.setup-branch.outputs.folder-name }}"
+          IMAGES_DIR="$FOLDER_NAME/images"
+          
+          echo "📸 Verifying generated images..."
+          if [ -d "$IMAGES_DIR" ]; then
+            IMAGE_COUNT=$(find "$IMAGES_DIR" -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" | wc -l)
+            echo "::notice::📸 Generated $IMAGE_COUNT images"
+            if [ "$IMAGE_COUNT" -gt 0 ]; then
+              echo "Image files:"
+              FIRST_IMAGE=$(find "$IMAGES_DIR" -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" | head -1)
+              echo "First image: $FIRST_IMAGE"
+              
+              # Google URLを確認してGitHub Outputに設定
+              if [ -f "$FOLDER_NAME/google-image-url.txt" ]; then
+                GOOGLE_URL=$(cat "$FOLDER_NAME/google-image-url.txt")
+                echo "Google image URL: $GOOGLE_URL"
+                echo "google-image-url=$GOOGLE_URL" >> $GITHUB_OUTPUT
+              else
+                echo "::warning::⚠️ Google image URL not found in file"
+                echo "google-image-url=" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "::error::❌ No images were generated"
+              exit 1
+            fi
+          else
+            echo "::error::❌ Images directory not found"
+            exit 1
+          fi
+          
+          echo "completed=true" >> $GITHUB_OUTPUT
+      
+      - name: Commit and push images
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ needs.setup-branch.outputs.folder-name }}/
+          if git diff --cached --quiet; then
+            echo "No images to commit"
+          else
+            git commit -m "Add generated images (MAX Plan GitHub Action): ${{ inputs.prompt }}"
+            git push origin ${{ needs.setup-branch.outputs.branch-name }}
+          fi
+
+  video-generation:
+    runs-on: ubuntu-latest
+    needs: [setup-branch, image-generation]
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    outputs:
+      video-completed: ${{ steps.video.outputs.completed }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup-branch.outputs.branch-name }}
+      
+      - name: Create videos folder
+        run: |
+          FOLDER_NAME="${{ needs.setup-branch.outputs.folder-name }}"
+          VIDEOS_DIR="$FOLDER_NAME/videos"
+          mkdir -p "$VIDEOS_DIR"
+          echo "📁 Created videos folder: $VIDEOS_DIR"
+      
+      - name: 動画生成エージェント (Vidu Q1, MAXプラン GitHub Action版)
+        id: video
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          custom_instructions: |
+            以下のGoogle画像URLを使用してVidu Q1で参照動画を生成してください。
+
+            **Google画像URL**: ${{ needs.image-generation.outputs.google-image-url }}
+            **元のユーザー指示**: ${{ inputs.prompt }}
+
+            **実行手順**:
+            1. 提供されたGoogle画像URLを使用
+            2. MCP設定ファイル「.claude/mcp-kamuicode.json」を確認
+            3. `mcp__r2v-fal-vidu-q1__vidu_q1_submit`ツールで動画生成を開始（Google URLを直接指定）
+            4. `mcp__r2v-fal-vidu-q1__vidu_q1_status`でステータス確認（動画生成には時間がかかるため、適度な間隔を空けて確認）
+            5. `sleep 60`を実行してから再度ステータス確認（必要に応じて複数回）
+            6. `mcp__r2v-fal-vidu-q1__vidu_q1_result`で結果取得して動画URLを取得
+            7. **必須**: 取得した動画URLを「${{ needs.setup-branch.outputs.folder-name }}/videos/generated-video.mp4」にダウンロード保存
+            8. **確認**: ダウンロードが成功したことを確認し、ファイルサイズを表示
+
+            **重要な注意点**:
+            - 提供されたGoogle URL（${{ needs.image-generation.outputs.google-image-url }}）をそのまま使用
+            - URLの有効期限は約1時間のため、生成後すぐにダウンロード
+            - **動画は必ず「${{ needs.setup-branch.outputs.folder-name }}/videos」ディレクトリに保存**
+            - **ファイル名は「generated-video.mp4」とする**
+            - ローカルファイルパスは使用禁止（Google URLのみ使用）
+            - **動画生成は時間がかかります**: ステータス確認の間に適度な待機時間を入れてください
+            - **忍耐強く**: 生成完了まで複数回のステータス確認が必要な場合があります
+            - **ダウンロード必須**: 動画URLを取得したら必ずローカルファイルに保存
+            - **ファイル確認**: 保存後にファイルサイズを確認し、0バイトでないことを確認
+
+            **今すぐ上記のタスクを実行してください。GitHub Action版Claude Code (MAX Plan)を使用中です。**
+      
+      - name: Verify video generation
+        id: verify-video
+        run: |
+          FOLDER_NAME="${{ needs.setup-branch.outputs.folder-name }}"
+          VIDEOS_DIR="$FOLDER_NAME/videos"
+          
+          echo "🎬 Verifying generated videos..."
+          if [ -d "$VIDEOS_DIR" ]; then
+            VIDEO_COUNT=$(find "$VIDEOS_DIR" -name "*.mp4" -o -name "*.mov" -o -name "*.avi" | wc -l)
+            echo "::notice::🎬 Generated $VIDEO_COUNT videos"
+            if [ "$VIDEO_COUNT" -gt 0 ]; then
+              echo "Video files:"
+              find "$VIDEOS_DIR" -name "*.mp4" -o -name "*.mov" -o -name "*.avi" | head -3
+              
+              # 動画ファイルサイズの確認
+              for video_file in $(find "$VIDEOS_DIR" -name "*.mp4" -o -name "*.mov" -o -name "*.avi" | head -3); do
+                if [ -f "$video_file" ]; then
+                  VIDEO_SIZE=$(stat -c%s "$video_file" 2>/dev/null || stat -f%z "$video_file" 2>/dev/null || echo "0")
+                  echo "::notice::📹 Video file: $video_file (${VIDEO_SIZE} bytes)"
+                  if [ "$VIDEO_SIZE" -eq 0 ]; then
+                    echo "::error::❌ Video file is empty: $video_file"
+                    exit 1
+                  fi
+                fi
+              done
+            else
+              echo "::error::❌ No videos were generated"
+              exit 1
+            fi
+          else
+            echo "::error::❌ Videos directory not found"
+            exit 1
+          fi
+          
+          echo "completed=true" >> $GITHUB_OUTPUT
+      
+      - name: Commit and push videos
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ${{ needs.setup-branch.outputs.folder-name }}/
+          if git diff --cached --quiet; then
+            echo "No videos to commit"
+          else
+            git commit -m "Add generated videos (MAX Plan GitHub Action): ${{ inputs.prompt }}"
+            git push origin ${{ needs.setup-branch.outputs.branch-name }}
+          fi
+
+  create-pr:
+    runs-on: ubuntu-latest
+    needs: [setup-branch, planning, image-generation, video-generation]
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.setup-branch.outputs.branch-name }}
+      
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.PAT_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          # ブランチ名を取得
+          BRANCH_NAME="${{ needs.setup-branch.outputs.branch-name }}"
+          
+          # 変更をコミット
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 最終成果物の確認とコミット
+          FOLDER_NAME="${{ needs.setup-branch.outputs.folder-name }}"
+          echo "=== Final Video Generation Summary (MAX Plan GitHub Action) ==="
+          echo "Video folder: $FOLDER_NAME"
+          echo "Authentication: Claude MAX Plan OAuth Token (GitHub Action版)"
+          echo "Cost: $0 (Included in MAX subscription)"
+          
+          IMAGES_COUNT=0
+          VIDEOS_COUNT=0
+          
+          if [ -d "$FOLDER_NAME" ]; then
+            echo "✅ Video folder exists: $FOLDER_NAME"
+            echo "Contents:"
+            ls -la "$FOLDER_NAME"
+            
+            # 画像ファイルの確認
+            if [ -d "$FOLDER_NAME/images" ]; then
+              IMAGES_COUNT=$(find "$FOLDER_NAME/images" -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" | wc -l)
+              echo "✅ Images directory exists with $IMAGES_COUNT files"
+              if [ "$IMAGES_COUNT" -gt 0 ]; then
+                echo "Image files:"
+                find "$FOLDER_NAME/images" -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" | head -3
+              fi
+            else
+              echo "❌ Images directory not found"
+            fi
+            
+            # 動画ファイルの確認
+            if [ -d "$FOLDER_NAME/videos" ]; then
+              VIDEOS_COUNT=$(find "$FOLDER_NAME/videos" -name "*.mp4" -o -name "*.mov" -o -name "*.avi" | wc -l)
+              echo "✅ Videos directory exists with $VIDEOS_COUNT files"
+              if [ "$VIDEOS_COUNT" -gt 0 ]; then
+                echo "Video files:"
+                find "$FOLDER_NAME/videos" -name "*.mp4" -o -name "*.mov" -o -name "*.avi" | head -3
+              fi
+            else
+              echo "❌ Videos directory not found"
+            fi
+          else
+            echo "❌ Video folder not found: $FOLDER_NAME"
+          fi
+          
+          # すべてのファイルをコミット
+          git add "$FOLDER_NAME/" 2>/dev/null || true
+          
+          # コミットメッセージを作成
+          COMMIT_MESSAGE="Add new AI-generated video (MAX Plan GitHub Action): ${{ inputs.prompt }}
+          
+          プロンプト: ${{ inputs.prompt }}
+          生成日時: $(date -u +%Y-%m-%d\ %H:%M:%S)\ UTC
+          
+          📊 Generation Summary:
+          - Images: $IMAGES_COUNT files (Imagen4 Ultra)
+          - Videos: $VIDEOS_COUNT files (Vidu Q1)
+          - Authentication: Claude MAX Plan OAuth Token (GitHub Action版)
+          - Cost: $0 (Included in MAX subscription)
+          
+          🤖 Generated with Claude Code SDK & kamuicode MCP (MAX Plan GitHub Action)
+          Co-Authored-By: Claude <noreply@anthropic.com>"
+          
+          # コミット
+          if git diff --cached --quiet; then
+            echo "Warning: No changes to commit"
+            git commit --allow-empty -m "$COMMIT_MESSAGE"
+          else
+            git commit -m "$COMMIT_MESSAGE"
+          fi
+          
+          # プッシュ
+          git push origin $BRANCH_NAME
+          
+          # 生成されたファイルのパス取得（サマリ用）
+          GENERATED_IMAGE_PATH=""
+          GENERATED_VIDEO_PATH=""
+          
+          if [ -d "$FOLDER_NAME/images" ] && [ "$IMAGES_COUNT" -gt 0 ]; then
+            GENERATED_IMAGE_PATH=$(find "$FOLDER_NAME/images" -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" | head -1)
+          fi
+          
+          if [ -d "$FOLDER_NAME/videos" ] && [ "$VIDEOS_COUNT" -gt 0 ]; then
+            GENERATED_VIDEO_PATH=$(find "$FOLDER_NAME/videos" -name "*.mp4" -o -name "*.mov" -o -name "*.avi" | head -1)
+          fi
+          
+          # プルリクエスト用のボディを作成
+          PR_BODY="🤖 Claude Code SDK & kamuicode MCPを使用して自動生成された動画です."
+          PR_BODY="$PR_BODY"$'\n\n'"**Claude MAXプラン使用（GitHub Action版）** - 従量課金なし、MAXサブスクリプション内で生成"
+          PR_BODY="$PR_BODY"$'\n\n'"プロンプト: ${{ inputs.prompt }}"
+          PR_BODY="$PR_BODY"$'\n\n'"生成フロー:"
+          PR_BODY="$PR_BODY"$'\n'"1. 🎨 Imagen4 Ultra で高品質画像生成"
+          PR_BODY="$PR_BODY"$'\n'"2. 🎬 Vidu Q1 で参照動画生成"
+          PR_BODY="$PR_BODY"$'\n\n'"成果物:"
+          PR_BODY="$PR_BODY"$'\n'"- 画像: $IMAGES_COUNT ファイル"
+          PR_BODY="$PR_BODY"$'\n'"- 動画: $VIDEOS_COUNT ファイル"
+          PR_BODY="$PR_BODY"$'\n'"- コスト: **$0** (MAXプラン内)"
+          PR_BODY="$PR_BODY"$'\n'"- 認証: GitHub Action版 OAuth"
+          
+          # 画像をプルリクに埋め込み
+          if [ -n "$GENERATED_IMAGE_PATH" ] && [ -f "$GENERATED_IMAGE_PATH" ]; then
+            GITHUB_IMAGE_URL="https://github.com/${{ github.repository }}/raw/$BRANCH_NAME/$GENERATED_IMAGE_PATH"
+            PR_BODY="$PR_BODY"$'\n\n'"## 🎨 生成された画像"
+            PR_BODY="$PR_BODY"$'\n'"![Generated Image]($GITHUB_IMAGE_URL)"
+          fi
+          
+          # 動画をプルリクに埋め込み
+          if [ -n "$GENERATED_VIDEO_PATH" ] && [ -f "$GENERATED_VIDEO_PATH" ]; then
+            GITHUB_VIDEO_URL="https://github.com/${{ github.repository }}/raw/$BRANCH_NAME/$GENERATED_VIDEO_PATH"
+            PR_BODY="$PR_BODY"$'\n\n'"## 🎬 生成された動画"
+            PR_BODY="$PR_BODY"$'\n\n'"<video width=\"640\" height=\"480\" controls>"
+            PR_BODY="$PR_BODY"$'\n'"  <source src=\"$GITHUB_VIDEO_URL\" type=\"video/mp4\">"
+            PR_BODY="$PR_BODY"$'\n'"  お使いのブラウザは動画タグをサポートしていません。"
+            PR_BODY="$PR_BODY"$'\n'"  <a href=\"$GITHUB_VIDEO_URL\">動画をダウンロードして再生</a>"
+            PR_BODY="$PR_BODY"$'\n'"</video>"
+            PR_BODY="$PR_BODY"$'\n\n'"📁 **ファイルパス**: \`$GENERATED_VIDEO_PATH\`"
+          fi
+          
+          PR_BODY="$PR_BODY
+
+          ---
+          🤖 Generated with [Claude Code SDK & kamuicode MCP](https://github.com/AI-Summoner/ai-summoner) using Claude MAX Plan OAuth Authentication (GitHub Action版)"
+          
+          # PR作成
+          gh pr create \
+            --title "新しいAI生成動画 (MAXプラン GitHub Action版): ${{ inputs.prompt }}" \
+            --body "$PR_BODY" \
+            --base main \
+            --head $BRANCH_NAME
