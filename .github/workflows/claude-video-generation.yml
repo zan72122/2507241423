@@ -16,7 +16,7 @@ jobs:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude generate video:')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude generate video:')) ||
-      (github.event_name == 'issues' && contains(github.event.issue.body, '@claude generate video:'))
+      (github.event_name == 'issues' && github.event.action == 'opened' && contains(github.event.issue.body, '@claude generate video:'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
