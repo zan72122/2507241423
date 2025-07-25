@@ -62,8 +62,10 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Install Claude Code CLI (Latest Version for OAuth)
-        run: npm install -g @anthropic-ai/claude-code@latest
+      - name: Verify Node.js and npm
+        run: |
+          node --version
+          npm --version
       
       - name: 動画制作計画エージェント (MAXプラン)
         id: planning
@@ -144,7 +146,7 @@ jobs:
           echo "📝 Prompt length: ${#PROMPT}"
           
           # Claude Code CLIの実行（MAXプラン認証）
-          claude-code \
+          npx @anthropic-ai/claude-code@latest \
             --allowedTools "Read,Write,Edit" \
             --max-turns 25 \
             --verbose \
@@ -242,8 +244,10 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Install Claude Code CLI (Latest Version for OAuth)
-        run: npm install -g @anthropic-ai/claude-code@latest
+      - name: Verify Node.js and npm
+        run: |
+          node --version
+          npm --version
       
       - name: 画像生成エージェント (Imagen4 Ultra, MAXプラン)
         id: image
@@ -323,7 +327,7 @@ jobs:
           echo "📝 Prompt length: ${#PROMPT}"
           
           # Claude Code CLIの実行（MAXプラン認証）
-          claude-code \
+          npx @anthropic-ai/claude-code@latest \
             --mcp-config="$MCP_CONFIG_ABS_PATH" \
             --allowedTools "mcp__t2i-fal-imagen4-ultra__imagen4_ultra_submit,mcp__t2i-fal-imagen4-ultra__imagen4_ultra_status,mcp__t2i-fal-imagen4-ultra__imagen4_ultra_result,Bash" \
             --max-turns 25 \
@@ -401,8 +405,10 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Install Claude Code CLI (Latest Version for OAuth)
-        run: npm install -g @anthropic-ai/claude-code@latest
+      - name: Verify Node.js and npm
+        run: |
+          node --version
+          npm --version
       
       - name: 動画プロンプト最適化エージェント (MAXプラン)
         id: optimization
@@ -489,7 +495,7 @@ jobs:
           echo "📝 Prompt length: ${#PROMPT}"
           
           # Claude Code CLIの実行（MAXプラン認証）
-          claude-code \
+          npx @anthropic-ai/claude-code@latest \
             --allowedTools "Read,Write,Edit" \
             --max-turns 10 \
             --verbose \
@@ -567,8 +573,10 @@ jobs:
         with:
           node-version: '20'
       
-      - name: Install Claude Code CLI (Latest Version for OAuth)
-        run: npm install -g @anthropic-ai/claude-code@latest
+      - name: Verify Node.js and npm
+        run: |
+          node --version
+          npm --version
       
       - name: 動画生成エージェント (Vidu Q1, MAXプラン)
         id: video
@@ -674,7 +682,7 @@ jobs:
           echo "📝 Prompt length: ${#PROMPT}"
           
           # Claude Code CLIの実行（MAXプラン認証）
-          claude-code \
+          npx @anthropic-ai/claude-code@latest \
             --mcp-config="$MCP_CONFIG_ABS_PATH" \
             --allowedTools "mcp__r2v-fal-vidu-q1__vidu_q1_submit,mcp__r2v-fal-vidu-q1__vidu_q1_status,mcp__r2v-fal-vidu-q1__vidu_q1_result,Bash" \
             --max-turns 25 \
