@@ -1,0 +1,72 @@
+name: Claude Video Generation (MAX Plan)
+
+# MAX プランのOAuth認証を使用してコメントから動画生成を実行
+# 使用方法: イシューまたはプルリクエストで "@claude generate video: [プロンプト]" とコメント
+
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+  issues:
+    types: [opened]
+
+jobs:
+  claude-video:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude generate video:')) ||
+      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude generate video:')) ||
+      (github.event_name == 'issues' && contains(github.event.issue.body, '@claude generate video:'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Video Generation
+        id: claude
+        uses: anthropics/claude-code-action@beta
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          custom_instructions: |
+            あなたは動画生成の専門エージェントです。ユーザーのコメントから動画生成プロンプトを抽出し、以下の手順で動画を生成してください。
+
+            **重要**: Claude MAX プランのOAuth認証で従量課金を回避しています。
+
+            **プロンプト抽出手順**:
+            1. コメント内容から "@claude generate video:" 以降のテキストを抽出
+            2. 動画生成に適したプロンプトに整理・最適化
+
+            **動画生成フロー**:
+            1. **計画作成**: 動画コンセプトと画像プロンプトを計画
+            2. **画像生成**: Imagen4 Ultraで高品質画像を生成
+            3. **動画変換**: Vidu Q1で参照動画を生成
+            4. **ファイル保存**: 生成した動画をリポジトリに保存
+            5. **プルリクエスト作成**: 生成結果をプルリクエストで提示
+
+            **技術仕様**:
+            - MCP設定: `.claude/mcp-kamuicode.json`を使用
+            - 画像生成: `mcp__t2i-fal-imagen4-ultra__imagen4_ultra_*`ツール
+            - 動画生成: `mcp__r2v-fal-vidu-q1__vidu_q1_*`ツール
+            - 保存場所: `videos/claude-generated-[timestamp]/`
+
+            **成果物**:
+            - 生成された画像ファイル (PNG)
+            - 生成された動画ファイル (MP4) 
+            - 制作プロセスの説明文書
+            - プルリクエスト（成果物の確認用）
+
+            **今すぐ実行してください**: 
+            - コストは$0（MAXプラン内）
+            - OAuth認証により従量課金なし
+            - 完了までお待ちください
+
+            **コメント内容**:
+            ${{ github.event.comment.body || github.event.issue.body }}
